@@ -1,0 +1,5 @@
+{
+  "name": "Copy of CryptoMind: Multi-Agent Decision System",
+  "description": "一个分层式 AI 交易助手，协调 7 个专业的 Gemini 代理（分析师 -> 经理 -> CEO）分析实时 BTC/USDT 市场数据并生成交易信号。",
+  "requestFramePermissions": []
+}
