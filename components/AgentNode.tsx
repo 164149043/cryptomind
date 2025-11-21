@@ -45,8 +45,10 @@ export const AgentNode: React.FC<AgentNodeProps> = ({ agent, language }) => {
   const isCEO = agent.id === AgentRole.CEO;
 
   return (
-    <div className={`
-      relative flex flex-col bg-crypto-card border rounded-lg p-3 transition-all duration-300
+    <div 
+      id={agent.id}
+      className={`
+      relative flex flex-col bg-crypto-card border rounded-lg p-3 transition-all duration-300 z-10
       ${getStatusColor(agent.status)}
       ${isCEO ? 'h-full min-h-[200px]' : 'h-48'}
     `}>
@@ -69,7 +71,7 @@ export const AgentNode: React.FC<AgentNodeProps> = ({ agent, language }) => {
 
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto font-mono text-[10px] leading-4 text-gray-400"
+        className="flex-1 overflow-y-auto font-mono text-[10px] leading-4 text-gray-400 custom-scrollbar"
       >
         {agent.status === AgentStatus.THINKING ? (
             <span className="text-crypto-accent animate-pulse">{t.analyzing}</span>

@@ -6,6 +6,7 @@ import { translations } from '../locales';
 interface ChartProps {
   data: Kline[];
   language: Language;
+  symbol: string;
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -26,7 +27,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export const Chart: React.FC<ChartProps> = ({ data, language }) => {
+export const Chart: React.FC<ChartProps> = ({ data, language, symbol }) => {
   const t = translations[language];
   
   const processedData = useMemo(() => {
@@ -41,15 +42,25 @@ export const Chart: React.FC<ChartProps> = ({ data, language }) => {
   const domainMin = useMemo(() => Math.min(...data.map(d => d.low)) * 0.995, [data]);
   const domainMax = useMemo(() => Math.max(...data.map(d => d.high)) * 1.005, [data]);
 
-  if (data.length === 0) return <div className="h-full flex items-center justify-center text-gray-600">{t.loading}</div>;
+  if (data.length === 0) return <div className="h-full flex items-center justify-center text-gray-600 animate-pulse">{t.loading}</div>;
 
   return (
     <div className="w-full h-full bg-crypto-card rounded-lg border border-gray-800 p-4">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-          <span className="text-crypto-accent">BTC/USDT</span>
-          <span className="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-500">1H</span>
-        </h2>
+        <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+              <span className="text-crypto-accent">{symbol}</span>
+              <span className="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-500">1H</span>
+            </h2>
+            <div className="flex items-center gap-1.5 bg-green-900/20 px-2 py-0.5 rounded-full border border-green-900/50">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span className="text-[10px] font-bold text-green-500 tracking-wider">LIVE</span>
+            </div>
+        </div>
+
         <div className="text-xs text-gray-500 font-mono">
             {t.last}: <span className="text-white text-sm">{data[data.length-1]?.close.toFixed(2)}</span>
         </div>

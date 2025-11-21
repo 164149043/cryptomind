@@ -1,3 +1,4 @@
+
 import { AgentRole, Kline, Language } from "../types";
 import { createAgentPrompt, formatDataForPrompt } from "./prompts";
 
@@ -11,7 +12,8 @@ export const runDeepSeekAgent = async (
   symbol: string,
   upstreamReports: Record<string, string> = {},
   userApiKey?: string,
-  temperature: number = 0.7
+  temperature: number = 0.7,
+  extraContext?: string
 ): Promise<string> => {
   // Prioritize user-provided key from UI, then environment variable
   const apiKey = userApiKey || process.env.DEEPSEEK_API_KEY;
@@ -28,7 +30,7 @@ export const runDeepSeekAgent = async (
     reportsStr += `--- Report from ${r} ---\n${content}\n`;
   });
 
-  const prompt = createAgentPrompt(role, dataStr, language, symbol, reportsStr);
+  const prompt = createAgentPrompt(role, dataStr, language, symbol, reportsStr, extraContext);
 
   let lastError: any;
   for (let attempt = 0; attempt < 3; attempt++) {

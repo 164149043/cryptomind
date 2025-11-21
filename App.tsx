@@ -1,12 +1,15 @@
-import React, { useState, useCallback, useEffect } from 'react';
+
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { Chart } from './components/Chart';
 import { AgentNode } from './components/AgentNode';
 import { DecisionModal } from './components/DecisionModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ConnectionsOverlay } from './components/ConnectionsOverlay';
 import { INITIAL_AGENTS, SIMULATION_DELAY } from './constants';
-import { AgentRole, AgentState, AgentStatus, Kline, TradingDecision, Language, AIProvider } from './types';
-import { fetchMarketData } from './services/binanceService';
+import { AgentRole, AgentState, AgentStatus, Kline, TradingDecision, Language, AIProvider, FundingRate, EthereumData, OrderBook } from './types';
+import { fetchMarketData, subscribeToMarketData, fetchOrderBook, fetchFundingRate } from './services/binanceService';
+import { fetchEthereumData } from './services/etherscanService';
 import { runGeminiAgent } from './services/geminiService';
 import { runDeepSeekAgent } from './services/deepseekService';
 import { translations } from './locales';
@@ -23,6 +26,12 @@ const App: React.FC = () => {
   const [finalDecision, setFinalDecision] = useState<TradingDecision | null>(null);
   const [error, setError] = useState<string | null>(null);
   
+  // Live Extra Data State
+  const [extraData, setExtraData] = useState<{
+    funding: FundingRate | null;
+    gas: EthereumData | null;
+  }>({ funding: null, gas: null });
+
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
   const [agentTemps, setAgentTemps] = useState<Record<AgentRole, number>>({
@@ -33,11 +42,25 @@ const App: React.FC = () => {
     [AgentRole.MACRO]: 0.7,
     [AgentRole.TECH_MANAGER]: 0.5,
     [AgentRole.FUND_MANAGER]: 0.5,
-    [AgentRole.RISK_MANAGER]: 0.3, // Low temperature for strict risk control
+    [AgentRole.RISK_MANAGER]: 0.3, 
     [AgentRole.CEO]: 0.2 
   });
 
+  const agentTreeRef = useRef<HTMLDivElement>(null);
+
   const t = translations[language];
+
+  // Define Topology for Visual Lines
+  const connections = [
+    { from: AgentRole.SHORT_TERM, to: AgentRole.TECH_MANAGER },
+    { from: AgentRole.LONG_TERM, to: AgentRole.TECH_MANAGER },
+    { from: AgentRole.QUANT, to: AgentRole.TECH_MANAGER },
+    { from: AgentRole.ON_CHAIN, to: AgentRole.FUND_MANAGER },
+    { from: AgentRole.MACRO, to: AgentRole.FUND_MANAGER },
+    { from: AgentRole.TECH_MANAGER, to: AgentRole.RISK_MANAGER },
+    { from: AgentRole.FUND_MANAGER, to: AgentRole.RISK_MANAGER },
+    { from: AgentRole.RISK_MANAGER, to: AgentRole.CEO }
+  ];
 
   // Update agents text when language changes
   useEffect(() => {
@@ -50,30 +73,69 @@ const App: React.FC = () => {
 
   // Initialize/Update data when symbol changes
   useEffect(() => {
+    let wsUnsubscribe: (() => void) | null = null;
+    let active = true; // Flag to avoid race conditions
+
     const initData = async () => {
-      const data = await fetchMarketData(symbol);
-      setMarketData(data);
+      // Clear existing data to show loading state and prevent stale analysis
+      setMarketData([]); 
+      
+      try {
+        const data = await fetchMarketData(symbol);
+        
+        // Only update state if this effect is still active (user hasn't switched symbol again)
+        if (active) {
+            setMarketData(data);
+
+            wsUnsubscribe = subscribeToMarketData(symbol, (newKline) => {
+              if (!active) return;
+              setMarketData(prev => {
+                if (!prev || prev.length === 0) return [newKline];
+                const lastKline = prev[prev.length - 1];
+                if (lastKline.time === newKline.time) {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = newKline;
+                  return updated;
+                } else if (newKline.time > lastKline.time) {
+                  const updated = [...prev.slice(1), newKline];
+                  return updated;
+                }
+                return prev;
+              });
+            });
+        }
+      } catch (e) {
+        console.error("Failed to initialize market data", e);
+      }
     };
+
     initData();
+
+    return () => {
+      active = false;
+      if (wsUnsubscribe) {
+        wsUnsubscribe();
+      }
+    };
   }, [symbol]);
 
   const updateAgentStatus = (id: AgentRole, status: AgentStatus, output: string | null = null) => {
     setAgents(prev => prev.map(a => a.id === id ? { ...a, status, output: output || a.output } : a));
   };
 
-  // Wrapper to call correct service
   const executeAgent = async (
     role: AgentRole,
     data: Kline[],
     lang: Language,
     currentSymbol: string,
-    reports: Record<string, string> = {}
+    reports: Record<string, string> = {},
+    extraContext?: string
   ): Promise<string> => {
     const temp = agentTemps[role];
     if (provider === 'gemini') {
-      return runGeminiAgent(role, data, lang, currentSymbol, reports, temp);
+      return runGeminiAgent(role, data, lang, currentSymbol, reports, temp, extraContext);
     } else {
-      return runDeepSeekAgent(role, data, lang, currentSymbol, reports, deepseekKey, temp);
+      return runDeepSeekAgent(role, data, lang, currentSymbol, reports, deepseekKey, temp, extraContext);
     }
   };
 
@@ -89,7 +151,6 @@ const App: React.FC = () => {
     setError(null);
     setFinalDecision(null);
 
-    // Reset Agents
     setAgents(INITIAL_AGENTS.map(a => ({
       ...a,
       name: translations[language].agentNames[a.id],
@@ -97,14 +158,54 @@ const App: React.FC = () => {
     })));
 
     try {
-      // Step 1: Tier 1 Analysts (Parallel)
+      // Step 0: Fetch Extra Live Data
+      let depthDataStr = "";
+      let fundingDataStr = "";
+      let onChainDataStr = "";
+      
+      try {
+          const [orderBook, fundingRate, ethData] = await Promise.all([
+              fetchOrderBook(symbol),
+              fetchFundingRate(symbol),
+              fetchEthereumData() 
+          ]);
+
+          // Update State for UI
+          setExtraData({
+            funding: fundingRate,
+            gas: ethData
+          });
+
+          if (orderBook) {
+             depthDataStr = "Top 10 Bids:\n" + orderBook.bids.slice(0,10).map(b => `Price: ${b[0]}, Vol: ${b[1]}`).join('\n') + 
+                            "\nTop 10 Asks:\n" + orderBook.asks.slice(0,10).map(a => `Price: ${a[0]}, Vol: ${a[1]}`).join('\n');
+          }
+
+          if (fundingRate) {
+             fundingDataStr = `Current Funding Rate: ${fundingRate.lastFundingRate}\nNext Funding Time: ${new Date(fundingRate.nextFundingTime).toLocaleTimeString()}`;
+          }
+
+          if (ethData) {
+             onChainDataStr = `ETH Gas (Gwei) - Safe: ${ethData.safeGasPrice}, Propose: ${ethData.proposeGasPrice}, Fast: ${ethData.fastGasPrice}`;
+          }
+
+      } catch (e) {
+          console.warn("Failed to fetch extra market data, proceeding with candles only.", e);
+      }
+
+      // Step 1: Tier 1 Analysts
       const tier1Roles = [AgentRole.SHORT_TERM, AgentRole.LONG_TERM, AgentRole.QUANT, AgentRole.ON_CHAIN, AgentRole.MACRO];
       
       tier1Roles.forEach(r => updateAgentStatus(r, AgentStatus.THINKING));
       
       const tier1Results = await Promise.all(tier1Roles.map(async (role) => {
         try {
-           const output = await executeAgent(role, marketData, language, symbol);
+           let extraContext = undefined;
+           if (role === AgentRole.SHORT_TERM) extraContext = depthDataStr;
+           if (role === AgentRole.QUANT) extraContext = fundingDataStr;
+           if (role === AgentRole.ON_CHAIN) extraContext = onChainDataStr;
+
+           const output = await executeAgent(role, marketData, language, symbol, {}, extraContext);
            updateAgentStatus(role, AgentStatus.COMPLETED, output);
            return { role, output };
         } catch (e) {
@@ -116,7 +217,7 @@ const App: React.FC = () => {
 
       await new Promise(r => setTimeout(r, SIMULATION_DELAY));
 
-      // Step 2: Tier 2 Managers (Parallel)
+      // Step 2: Tier 2 Managers
       const managers = [
         { role: AgentRole.TECH_MANAGER, inputs: [AgentRole.SHORT_TERM, AgentRole.LONG_TERM, AgentRole.QUANT] },
         { role: AgentRole.FUND_MANAGER, inputs: [AgentRole.ON_CHAIN, AgentRole.MACRO] }
@@ -128,7 +229,6 @@ const App: React.FC = () => {
          const inputReports: Record<string, string> = {};
          m.inputs.forEach(inputRole => {
              const res = tier1Results.find(r => r.role === inputRole);
-             // Pass the output if it exists and isn't a hard failure, otherwise inform the manager
              if (res && res.output && res.output !== "Failed") {
                 inputReports[inputRole] = res.output;
              } else {
@@ -175,17 +275,14 @@ const App: React.FC = () => {
       // Step 4: CEO
       updateAgentStatus(AgentRole.CEO, AgentStatus.THINKING);
       
-      // CEO sees Manager reports AND Risk report
       const ceoInputs: Record<string, string> = { ...riskInputs };
       ceoInputs[AgentRole.RISK_MANAGER] = riskOutput;
 
       try {
           const ceoOutputRaw = await executeAgent(AgentRole.CEO, marketData, language, symbol, ceoInputs);
           
-          // Parse JSON
           let decision: TradingDecision;
           try {
-              // Clean up markdown code blocks if the model adds them
               const cleanJson = ceoOutputRaw.replace(/```json/g, '').replace(/```/g, '').trim();
               decision = JSON.parse(cleanJson);
           } catch (e) {
@@ -219,7 +316,6 @@ const App: React.FC = () => {
     }
   }, [marketData, isAnalyzing, agents, language, t, provider, symbol, deepseekKey, agentTemps]);
 
-  // Group agents for UI
   const analysts = agents.filter(a => 
     [AgentRole.SHORT_TERM, AgentRole.LONG_TERM, AgentRole.QUANT, AgentRole.ON_CHAIN, AgentRole.MACRO].includes(a.id)
   );
@@ -246,121 +342,147 @@ const App: React.FC = () => {
       <main className="flex-1 p-6 overflow-hidden flex flex-col lg:flex-row gap-6">
         {/* Left Column: Chart & Controls */}
         <div className="w-full lg:w-1/3 flex flex-col gap-6">
-          <div className="flex-1 min-h-[400px]">
-             <Chart data={marketData} language={language} />
+          <div className="flex-1 min-h-[300px] bg-crypto-card rounded-lg border border-gray-800 shadow-lg overflow-hidden">
+             <Chart data={marketData} language={language} symbol={symbol} />
           </div>
-          
-          <div className="bg-crypto-card border border-gray-800 rounded-lg p-6">
-             <h3 className="text-lg font-bold text-white mb-4">{t.controlTitle}</h3>
-             <p className="text-sm text-gray-500 mb-6">
-                {t.controlDesc}
-             </p>
-             
-             {error && (
-                 <div className="mb-4 p-3 bg-red-900/30 text-red-400 text-xs rounded border border-red-900">
-                     {error}
-                 </div>
-             )}
 
-             <button
-               onClick={startAnalysis}
-               disabled={isAnalyzing || marketData.length === 0}
-               className={`w-full py-4 rounded font-bold text-black tracking-wider uppercase transition-all
-                 ${isAnalyzing 
-                    ? 'bg-gray-600 cursor-not-allowed' 
-                    : provider === 'gemini' 
-                        ? 'bg-crypto-accent hover:bg-yellow-400 shadow-[0_0_20px_rgba(252,213,53,0.4)]'
-                        : 'bg-purple-600 text-white hover:bg-purple-500 shadow-[0_0_20px_rgba(147,51,234,0.4)]'
-                 }
-               `}
-             >
-               {isAnalyzing ? (
-                   <span className="flex items-center justify-center gap-2">
-                       <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                       </svg>
-                       {t.processing}
-                   </span>
-               ) : `${t.runButton} (${provider === 'gemini' ? 'Gemini' : 'DeepSeek'})`}
-             </button>
+          <div className="bg-crypto-card rounded-lg border border-gray-800 p-6 shadow-lg">
+            <h2 className="text-lg font-bold text-white mb-4">{t.controlTitle}</h2>
+            
+            {/* New Market Metrics Panel */}
+            {(extraData.funding || extraData.gas) && (
+              <div className="mb-4 grid grid-cols-2 gap-3 animate-[fadeIn_0.5s_ease-out]">
+                 <div className="bg-gray-900 p-3 rounded border border-gray-700">
+                    <div className="text-xs text-gray-500 mb-1">{t.fundingRate}</div>
+                    <div className={`font-mono text-sm font-bold ${parseFloat(extraData.funding?.lastFundingRate || '0') > 0 ? 'text-crypto-green' : 'text-crypto-red'}`}>
+                        {extraData.funding?.lastFundingRate || '--'}
+                    </div>
+                 </div>
+                 <div className="bg-gray-900 p-3 rounded border border-gray-700">
+                    <div className="text-xs text-gray-500 mb-1">{t.gasPrice}</div>
+                    <div className="font-mono text-sm font-bold text-blue-400">
+                        {extraData.gas?.safeGasPrice || '--'} / {extraData.gas?.fastGasPrice || '--'}
+                    </div>
+                 </div>
+              </div>
+            )}
+
+            <p className="text-sm text-gray-400 mb-6">{t.controlDesc}</p>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 rounded text-red-400 text-xs">
+                Error: {error}
+              </div>
+            )}
+
+            <button
+              onClick={startAnalysis}
+              disabled={isAnalyzing}
+              className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform active:scale-95 ${
+                isAnalyzing 
+                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-crypto-accent to-yellow-500 text-black hover:shadow-[0_0_20px_rgba(252,213,53,0.4)]'
+              }`}
+            >
+              {isAnalyzing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {t.processing}
+                </span>
+              ) : (
+                t.runButton
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Right Column: Agent Tree */}
-        <div className="w-full lg:w-2/3 relative">
-            {/* Connecting Lines Background */}
-            <div className="absolute inset-0 pointer-events-none opacity-20 hidden lg:block">
-               <svg width="100%" height="100%">
-                  {/* 5 Analysts to 2 Managers */}
-                  {/* Short(1), Trend(2), Quant(3) -> TechManager(1) */}
-                  <path d="M 15% 190 L 25% 300" stroke={provider === 'gemini' ? "#FCD535" : "#9333ea"} strokeWidth="1" fill="none" />
-                  <path d="M 30% 190 L 25% 300" stroke={provider === 'gemini' ? "#FCD535" : "#9333ea"} strokeWidth="1" fill="none" />
-                  <path d="M 50% 190 L 25% 300" stroke={provider === 'gemini' ? "#FCD535" : "#9333ea"} strokeWidth="1" fill="none" />
-                  
-                  {/* OnChain(4), Macro(5) -> FundManager(2) */}
-                  <path d="M 70% 190 L 75% 300" stroke={provider === 'gemini' ? "#FCD535" : "#9333ea"} strokeWidth="1" fill="none" />
-                  <path d="M 85% 190 L 75% 300" stroke={provider === 'gemini' ? "#FCD535" : "#9333ea"} strokeWidth="1" fill="none" />
+        {/* Right Column: Agent Visualization Tree */}
+        <div 
+            ref={agentTreeRef}
+            className="w-full lg:w-2/3 bg-gray-900/50 rounded-xl border border-gray-800 p-6 relative overflow-y-auto overflow-x-hidden"
+        >
+          <ConnectionsOverlay 
+             connections={connections} 
+             containerRef={agentTreeRef} 
+             lineColor="#4B5563" 
+          />
 
-                  {/* Managers to Risk */}
-                  <path d="M 25% 500 L 50% 600" stroke={provider === 'gemini' ? "#FCD535" : "#9333ea"} strokeWidth="2" fill="none" />
-                  <path d="M 75% 500 L 50% 600" stroke={provider === 'gemini' ? "#FCD535" : "#9333ea"} strokeWidth="2" fill="none" />
-
-                  {/* Risk to CEO */}
-                  <path d="M 50% 780 L 50% 840" stroke={provider === 'gemini' ? "#FCD535" : "#9333ea"} strokeWidth="2" fill="none" />
-               </svg>
+          <div className="relative z-10 flex flex-col h-full gap-12">
+            <div>
+              <div className="text-xs font-mono text-gray-500 uppercase mb-4 border-l-2 border-crypto-accent pl-2">
+                {t.tier1}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {analysts.slice(0, 3).map(agent => (
+                    <AgentNode key={agent.id} agent={agent} language={language} />
+                ))}
+                <div className="col-span-2 md:col-span-3 flex justify-center gap-4">
+                     <div className="w-full md:w-1/3 max-w-[300px]">
+                        {analysts[3] && <AgentNode agent={analysts[3]} language={language} />}
+                     </div>
+                     <div className="w-full md:w-1/3 max-w-[300px]">
+                        {analysts[4] && <AgentNode agent={analysts[4]} language={language} />}
+                     </div>
+                </div>
+              </div>
             </div>
 
-            <div className="flex flex-col h-full gap-6">
-                {/* Tier 1: Analysts */}
-                <div>
-                    <h4 className="text-xs uppercase tracking-widest text-gray-500 mb-2 ml-1">{t.tier1}</h4>
-                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                        {analysts.map(agent => (
-                            <AgentNode key={agent.id} agent={agent} language={language} />
-                        ))}
-                    </div>
+            <div>
+                <div className="text-xs font-mono text-gray-500 uppercase mb-4 border-l-2 border-blue-500 pl-2">
+                    {t.tier2}
                 </div>
-
-                {/* Tier 2: Managers */}
-                <div>
-                    <h4 className="text-xs uppercase tracking-widest text-gray-500 mb-2 ml-1">{t.tier2}</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-0 md:px-12">
-                        {managers.map(agent => (
-                            <AgentNode key={agent.id} agent={agent} language={language} />
-                        ))}
-                    </div>
+                <div className="flex justify-center gap-8 md:gap-16">
+                    {managers.map(agent => (
+                        <div key={agent.id} className="w-full md:w-5/12 max-w-[350px]">
+                            <AgentNode agent={agent} language={language} />
+                        </div>
+                    ))}
                 </div>
+            </div>
 
-                {/* Tier 3: Risk */}
-                <div>
-                    <h4 className="text-xs uppercase tracking-widest text-gray-500 mb-2 ml-1">{t.tier3}</h4>
-                    <div className="max-w-xl mx-auto">
+            <div>
+                <div className="text-xs font-mono text-gray-500 uppercase mb-4 border-l-2 border-red-500 pl-2">
+                    {t.tier3}
+                </div>
+                <div className="flex justify-center">
+                     <div className="w-full md:w-1/2 max-w-[400px]">
                         {riskManager && <AgentNode agent={riskManager} language={language} />}
-                    </div>
+                     </div>
                 </div>
+            </div>
 
-                {/* Tier 4: CEO */}
-                <div className="flex-1">
-                    <h4 className="text-xs uppercase tracking-widest text-gray-500 mb-2 ml-1">{t.tier4}</h4>
-                    <div className="max-w-2xl mx-auto h-full pb-4">
-                         {ceo && <AgentNode agent={ceo} language={language} />}
+            <div className="flex-1">
+                <div className="text-xs font-mono text-gray-500 uppercase mb-4 border-l-2 border-purple-500 pl-2">
+                    {t.tier4}
+                </div>
+                <div className="flex justify-center h-full">
+                    <div className="w-full md:w-2/3 max-w-[500px] h-full">
+                        {ceo && <AgentNode agent={ceo} language={language} />}
                     </div>
                 </div>
             </div>
+
+          </div>
         </div>
       </main>
 
-      {finalDecision && (
-        <DecisionModal decision={finalDecision} language={language} onClose={() => setFinalDecision(null)} />
+      {finalDecision && showSettings === false && (
+        <DecisionModal 
+          decision={finalDecision} 
+          language={language}
+          onClose={() => setFinalDecision(null)}
+        />
       )}
-      
+
       {showSettings && (
-        <SettingsModal 
-            language={language}
-            agentTemps={agentTemps}
-            setAgentTemps={setAgentTemps}
-            onClose={() => setShowSettings(false)}
+        <SettingsModal
+          language={language}
+          agentTemps={agentTemps}
+          setAgentTemps={setAgentTemps}
+          onClose={() => setShowSettings(false)}
         />
       )}
     </div>

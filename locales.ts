@@ -1,3 +1,4 @@
+
 import { AgentRole } from "./types";
 
 export const translations = {
@@ -8,6 +9,9 @@ export const translations = {
     loading: "Loading Chart Data...",
     controlTitle: "Control Center",
     controlDesc: "Initiate the multi-agent workflow. Agents will analyze data in parallel, aggregate findings, audit risks, and execute a final strategy.",
+    marketMetrics: "Live Market Metrics",
+    fundingRate: "Funding Rate",
+    gasPrice: "ETH Gas (Gwei)",
     runButton: "Run Market Analysis",
     processing: "Processing...",
     tier1: "Tier 1: Specialized Analysis",
@@ -45,15 +49,15 @@ export const translations = {
       [AgentRole.CEO]: "General Manager (CEO)"
     },
     agentDescs: {
-      [AgentRole.SHORT_TERM]: "Scalping, 15m/1h timeframes, RSI/MACD focus.",
-      [AgentRole.LONG_TERM]: "Swing trading, 4h/1d trends, Support/Resistance.",
-      [AgentRole.QUANT]: "Statistical anomalies, volatility, volume profile.",
-      [AgentRole.ON_CHAIN]: "Volume flow, whale activity, exchange inflows.",
-      [AgentRole.MACRO]: "Global events, correlation with SPX/DXY.",
-      [AgentRole.TECH_MANAGER]: "Aggregates technical & quant signals.",
-      [AgentRole.FUND_MANAGER]: "Aggregates sentiment & macro signals.",
-      [AgentRole.RISK_MANAGER]: "Audits logic gaps, sets safety limits.",
-      [AgentRole.CEO]: "Final execution decision."
+      [AgentRole.SHORT_TERM]: "Price Action, Liquidity Sweeps (SFP), Order Book Walls.",
+      [AgentRole.LONG_TERM]: "Market Structure (HH/HL), Weekly/Daily Supply & Demand.",
+      [AgentRole.QUANT]: "Funding Rate Squeezes, Z-Score Mean Reversion, Volatility.",
+      [AgentRole.ON_CHAIN]: "Gas Fees correlation, Exchange Flows, Whale Tracking.",
+      [AgentRole.MACRO]: "Risk-On/Risk-Off Regime, Global Liquidity Context.",
+      [AgentRole.TECH_MANAGER]: "Synthesizes Structure, Momentum & Stats into a Setup.",
+      [AgentRole.FUND_MANAGER]: "Validates trade quality via On-Chain & Macro sentiment.",
+      [AgentRole.RISK_MANAGER]: "Calculates R:R Ratio. Vetoes trades with < 1.5 R:R.",
+      [AgentRole.CEO]: "Executes final signal strictly based on Risk parameters."
     }
   },
   zh: {
@@ -63,6 +67,9 @@ export const translations = {
     loading: "正在加载图表数据...",
     controlTitle: "控制中心",
     controlDesc: "启动多智能体工作流。智能体将并行分析数据，汇总结果，进行风险审计，并执行最终策略。",
+    marketMetrics: "实时市场指标",
+    fundingRate: "资金费率",
+    gasPrice: "ETH Gas (Gwei)",
     runButton: "开始市场分析",
     processing: "处理中...",
     tier1: "第一层：专项分析",
@@ -96,19 +103,19 @@ export const translations = {
       [AgentRole.MACRO]: "宏观分析师",
       [AgentRole.TECH_MANAGER]: "技术分析经理",
       [AgentRole.FUND_MANAGER]: "基本面分析经理",
-      [AgentRole.RISK_MANAGER]: "风控专员",
+      [AgentRole.RISK_MANAGER]: "风控总监",
       [AgentRole.CEO]: "总经理 (CEO)"
     },
     agentDescs: {
-      [AgentRole.SHORT_TERM]: "剥头皮交易，15m/1h 周期，关注 RSI/MACD。",
-      [AgentRole.LONG_TERM]: "波段交易，4h/1d 趋势，支撑/阻力位。",
-      [AgentRole.QUANT]: "统计异常，波动率聚类，资金费率分析。",
-      [AgentRole.ON_CHAIN]: "资金流向，鲸鱼活动，交易所流入流出。",
-      [AgentRole.MACRO]: "全球事件，与美股/美元指数的相关性。",
-      [AgentRole.TECH_MANAGER]: "汇总技术面与量化信号。",
-      [AgentRole.FUND_MANAGER]: "汇总情绪与宏观信号。",
-      [AgentRole.RISK_MANAGER]: "审计逻辑漏洞，设定风控底线。",
-      [AgentRole.CEO]: "最终执行决策。"
+      [AgentRole.SHORT_TERM]: "价格行为(PA)，流动性掠夺(SFP)，订单簿墙分析。",
+      [AgentRole.LONG_TERM]: "市场结构(HH/HL)，周线/日线供需区分析。",
+      [AgentRole.QUANT]: "资金费率挤压(Squeeze)分析，Z-Score均值回归，波动率。",
+      [AgentRole.ON_CHAIN]: "Gas费率关联，交易所资金流向，鲸鱼追踪。",
+      [AgentRole.MACRO]: "Risk-On/Risk-Off 市场体制，全球流动性背景。",
+      [AgentRole.TECH_MANAGER]: "综合结构、动能与统计数据，构建交易计划。",
+      [AgentRole.FUND_MANAGER]: "通过链上与宏观情绪验证交易质量。",
+      [AgentRole.RISK_MANAGER]: "计算盈亏比(R:R)。否决低于 1.5 R:R 的交易。",
+      [AgentRole.CEO]: "严格基于风控参数执行最终信号。"
     }
   }
 };

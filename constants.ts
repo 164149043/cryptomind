@@ -1,3 +1,4 @@
+
 import { AgentRole, AgentState, AgentStatus } from './types';
 
 export const INITIAL_AGENTS: AgentState[] = [
@@ -5,7 +6,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.SHORT_TERM,
     name: 'Short-Term Analyst',
-    description: 'Scalping, 15m/1h timeframes, RSI/MACD focus.',
+    description: 'Price Action, Liquidity Sweeps (SFP), Order Book Walls.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.TECH_MANAGER
@@ -13,7 +14,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.LONG_TERM,
     name: 'Trend Analyst',
-    description: 'Swing trading, 4h/1d trends, Support/Resistance.',
+    description: 'Market Structure (HH/HL), Weekly/Daily Supply & Demand.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.TECH_MANAGER
@@ -21,7 +22,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.QUANT,
     name: 'Quant Analyst',
-    description: 'Statistical anomalies, volatility clustering, funding rates.',
+    description: 'Funding Rate Squeezes, Z-Score Mean Reversion, Volatility.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.TECH_MANAGER
@@ -29,7 +30,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.ON_CHAIN,
     name: 'On-Chain Analyst',
-    description: 'Volume flow, whale activity, exchange inflows.',
+    description: 'Gas Fees correlation, Exchange Flows, Whale Tracking.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.FUND_MANAGER
@@ -37,7 +38,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.MACRO,
     name: 'Macro Analyst',
-    description: 'Global events, correlation with SPX/DXY.',
+    description: 'Risk-On/Risk-Off Regime, Global Liquidity Context.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.FUND_MANAGER
@@ -46,7 +47,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.TECH_MANAGER,
     name: 'Technical Manager',
-    description: 'Aggregates technical & quant signals.',
+    description: 'Synthesizes Structure, Momentum & Stats into a Setup.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.RISK_MANAGER
@@ -54,7 +55,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.FUND_MANAGER,
     name: 'Fundamental Manager',
-    description: 'Aggregates sentiment & macro signals.',
+    description: 'Validates trade quality via On-Chain & Macro sentiment.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.RISK_MANAGER
@@ -63,7 +64,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.RISK_MANAGER,
     name: 'Risk Manager',
-    description: ' audits analysis, identifies conflicts, sets limits.',
+    description: 'Calculates R:R Ratio. Vetoes trades with < 1.5 R:R.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.CEO
@@ -72,7 +73,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.CEO,
     name: 'General Manager (CEO)',
-    description: 'Final execution decision.',
+    description: 'Executes final signal strictly based on Risk parameters.',
     status: AgentStatus.IDLE,
     output: null
   }

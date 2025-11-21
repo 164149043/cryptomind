@@ -1,3 +1,4 @@
+
 // Market Data Types
 export interface Kline {
   time: number;
@@ -8,6 +9,27 @@ export interface Kline {
   volume: number;
 }
 
+export interface OrderBook {
+  lastUpdateId: number;
+  bids: [string, string][]; // [Price, Quantity]
+  asks: [string, string][]; // [Price, Quantity]
+}
+
+export interface FundingRate {
+  symbol: string;
+  markPrice: string;
+  lastFundingRate: string; // "0.0001"
+  nextFundingTime: number;
+}
+
+export interface EthereumData {
+  gasPrice: string; // Last Block Gas Price
+  safeGasPrice: string;
+  proposeGasPrice: string;
+  fastGasPrice: string;
+  suggestBaseFee: string;
+}
+
 export type Language = 'en' | 'zh';
 export type AIProvider = 'gemini' | 'deepseek';
 
@@ -15,12 +37,12 @@ export type AIProvider = 'gemini' | 'deepseek';
 export enum AgentRole {
   SHORT_TERM = 'SHORT_TERM_ANALYST',
   LONG_TERM = 'LONG_TERM_ANALYST',
-  QUANT = 'QUANT_ANALYST', // New
+  QUANT = 'QUANT_ANALYST',
   ON_CHAIN = 'ON_CHAIN_ANALYST',
   MACRO = 'MACRO_ANALYST',
   TECH_MANAGER = 'TECHNICAL_MANAGER',
   FUND_MANAGER = 'FUNDAMENTAL_MANAGER',
-  RISK_MANAGER = 'RISK_MANAGER', // New
+  RISK_MANAGER = 'RISK_MANAGER',
   CEO = 'CEO'
 }
 
