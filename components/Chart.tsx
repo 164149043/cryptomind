@@ -1,10 +1,11 @@
+
 import React, { useMemo } from 'react';
-import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Line } from 'recharts';
 import { Kline, Language } from '../types';
 import { translations } from '../locales';
 
 interface ChartProps {
-  data: Kline[];
+  data: any[]; // Relaxed type to include indicators
   language: Language;
   symbol: string;
 }
@@ -20,6 +21,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           <span className="text-gray-500">H:</span> <span className="text-white">{d.high.toFixed(2)}</span>
           <span className="text-gray-500">L:</span> <span className="text-white">{d.low.toFixed(2)}</span>
           <span className="text-gray-500">C:</span> <span className={`font-bold ${d.close >= d.open ? 'text-crypto-green' : 'text-crypto-red'}`}>{d.close.toFixed(2)}</span>
+          {d.sma20 && (
+             <>
+               <span className="text-yellow-500">SMA20:</span> <span className="text-yellow-500">{d.sma20.toFixed(2)}</span>
+             </>
+          )}
         </div>
       </div>
     );
@@ -98,6 +104,12 @@ export const Chart: React.FC<ChartProps> = ({ data, language, symbol }) => {
                     <Cell key={`body-${index}`} fill={entry.color} />
                 ))}
              </Bar>
+
+             {/* Indicators Overlay */}
+             <Line type="monotone" dataKey="sma20" stroke="#FCD535" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+             <Line type="monotone" dataKey="upperBand" stroke="#3B82F6" strokeOpacity={0.3} dot={false} strokeWidth={1} strokeDasharray="3 3" isAnimationActive={false} />
+             <Line type="monotone" dataKey="lowerBand" stroke="#3B82F6" strokeOpacity={0.3} dot={false} strokeWidth={1} strokeDasharray="3 3" isAnimationActive={false} />
+
           </ComposedChart>
         </ResponsiveContainer>
       </div>

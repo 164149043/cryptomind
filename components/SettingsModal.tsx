@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AgentRole, Language } from '../types';
 import { translations } from '../locales';
@@ -6,6 +7,8 @@ interface SettingsModalProps {
   language: Language;
   agentTemps: Record<AgentRole, number>;
   setAgentTemps: (temps: Record<AgentRole, number>) => void;
+  etherscanKey: string;
+  setEtherscanKey: (key: string) => void;
   onClose: () => void;
 }
 
@@ -13,6 +16,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   language,
   agentTemps,
   setAgentTemps,
+  etherscanKey,
+  setEtherscanKey,
   onClose
 }) => {
   const t = translations[language];
@@ -52,7 +57,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         
         {/* Header */}
         <div className="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/50 rounded-t-xl">
-          <h2 className="text-lg font-bold text-white">{t.randomnessSettings}</h2>
+          <h2 className="text-lg font-bold text-white">{t.settings}</h2>
           <button 
             onClick={onClose}
             className="text-gray-500 hover:text-white transition-colors"
@@ -65,6 +70,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Body */}
         <div className="p-6 overflow-y-auto custom-scrollbar">
+          
+          {/* API Configuration Section */}
+          <div className="mb-8">
+            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3 border-b border-gray-800 pb-1">API Configuration</h3>
+            
+            <div className="mb-4">
+               <label className="text-sm text-gray-300 font-medium block mb-2">Etherscan API Key</label>
+               <input 
+                 type="password"
+                 value={etherscanKey}
+                 onChange={(e) => setEtherscanKey(e.target.value)}
+                 className="w-full bg-gray-900 border border-gray-700 text-white text-sm rounded px-3 py-2 focus:border-crypto-accent outline-none font-mono placeholder-gray-600"
+                 placeholder="Enter Etherscan API Key"
+               />
+               <p className="text-[10px] text-gray-500 mt-1">Used for Gas Oracle and On-Chain data.</p>
+            </div>
+          </div>
+
           <p className="text-xs text-gray-500 mb-6 leading-relaxed">
             {t.randomnessDesc}
           </p>

@@ -1,39 +1,36 @@
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Header } from './components/Header';
 import { Chart } from './components/Chart';
 import { AgentNode } from './components/AgentNode';
 import { DecisionModal } from './components/DecisionModal';
 import { SettingsModal } from './components/SettingsModal';
+import { PositionModal } from './components/PositionModal';
 import { ConnectionsOverlay } from './components/ConnectionsOverlay';
-import { INITIAL_AGENTS, SIMULATION_DELAY } from './constants';
-import { AgentRole, AgentState, AgentStatus, Kline, TradingDecision, Language, AIProvider, FundingRate, EthereumData, OrderBook } from './types';
-import { fetchMarketData, subscribeToMarketData, fetchOrderBook, fetchFundingRate } from './services/binanceService';
-import { fetchEthereumData } from './services/etherscanService';
-import { runGeminiAgent } from './services/geminiService';
-import { runDeepSeekAgent } from './services/deepseekService';
+import { AgentRole, Kline, Language, AIProvider, FundingRate, EthereumData, UserPosition } from './types';
+import { fetchMarketData, subscribeToMarketData } from './services/binanceService';
+import { calculateSMA, calculateStdDev } from './services/prompts';
 import { translations } from './locales';
+import { useAgentWorkflow } from './hooks/useAgentWorkflow';
 
 const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('zh');
   const [provider, setProvider] = useState<AIProvider>('gemini');
   const [symbol, setSymbol] = useState<string>('BTCUSDT');
   const [deepseekKey, setDeepseekKey] = useState<string>('');
+  const [etherscanKey, setEtherscanKey] = useState<string>('BUU1FUTSK35QBMDJJTBB7134IZSP8V1T5H');
   
-  const [agents, setAgents] = useState<AgentState[]>(INITIAL_AGENTS);
+  // Market Data State
   const [marketData, setMarketData] = useState<Kline[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [finalDecision, setFinalDecision] = useState<TradingDecision | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Live Extra Data State
   const [extraData, setExtraData] = useState<{
     funding: FundingRate | null;
     gas: EthereumData | null;
   }>({ funding: null, gas: null });
 
-  // Settings State
+  // User & UI Settings State
   const [showSettings, setShowSettings] = useState(false);
+  const [userPosition, setUserPosition] = useState<UserPosition | null>(null);
+  const [showPositionModal, setShowPositionModal] = useState(false);
   const [agentTemps, setAgentTemps] = useState<Record<AgentRole, number>>({
     [AgentRole.SHORT_TERM]: 0.7,
     [AgentRole.LONG_TERM]: 0.7,
@@ -47,10 +44,30 @@ const App: React.FC = () => {
   });
 
   const agentTreeRef = useRef<HTMLDivElement>(null);
-
   const t = translations[language];
 
-  // Define Topology for Visual Lines
+  // Use Custom Hook for Workflow
+  const {
+    agents,
+    setAgents,
+    isAnalyzing,
+    finalDecision,
+    setFinalDecision,
+    error,
+    startAnalysis
+  } = useAgentWorkflow({
+    marketData,
+    symbol,
+    language,
+    provider,
+    deepseekKey,
+    etherscanKey,
+    agentTemps,
+    userPosition,
+    setExtraData
+  });
+
+  // Topology for Visual Lines
   const connections = [
     { from: AgentRole.SHORT_TERM, to: AgentRole.TECH_MANAGER },
     { from: AgentRole.LONG_TERM, to: AgentRole.TECH_MANAGER },
@@ -69,24 +86,36 @@ const App: React.FC = () => {
       name: translations[language].agentNames[agent.id],
       description: translations[language].agentDescs[agent.id]
     })));
-  }, [language]);
+  }, [language, setAgents]);
+
+  // Precompute Indicators for the Chart
+  const processedMarketData = useMemo(() => {
+    if (marketData.length === 0) return [];
+    const closes = marketData.map(k => k.close);
+    const sma20 = calculateSMA(closes, 20);
+    const stdDev20 = calculateStdDev(closes, 20, sma20);
+    const upperBand = sma20.map((val, i) => val + (stdDev20[i] * 2));
+    const lowerBand = sma20.map((val, i) => val - (stdDev20[i] * 2));
+
+    return marketData.map((k, i) => ({
+      ...k,
+      sma20: sma20[i],
+      upperBand: upperBand[i],
+      lowerBand: lowerBand[i]
+    }));
+  }, [marketData]);
 
   // Initialize/Update data when symbol changes
   useEffect(() => {
     let wsUnsubscribe: (() => void) | null = null;
-    let active = true; // Flag to avoid race conditions
+    let active = true;
 
     const initData = async () => {
-      // Clear existing data to show loading state and prevent stale analysis
       setMarketData([]); 
-      
       try {
         const data = await fetchMarketData(symbol);
-        
-        // Only update state if this effect is still active (user hasn't switched symbol again)
         if (active) {
             setMarketData(data);
-
             wsUnsubscribe = subscribeToMarketData(symbol, (newKline) => {
               if (!active) return;
               setMarketData(prev => {
@@ -108,213 +137,12 @@ const App: React.FC = () => {
         console.error("Failed to initialize market data", e);
       }
     };
-
     initData();
-
     return () => {
       active = false;
-      if (wsUnsubscribe) {
-        wsUnsubscribe();
-      }
+      if (wsUnsubscribe) wsUnsubscribe();
     };
   }, [symbol]);
-
-  const updateAgentStatus = (id: AgentRole, status: AgentStatus, output: string | null = null) => {
-    setAgents(prev => prev.map(a => a.id === id ? { ...a, status, output: output || a.output } : a));
-  };
-
-  const executeAgent = async (
-    role: AgentRole,
-    data: Kline[],
-    lang: Language,
-    currentSymbol: string,
-    reports: Record<string, string> = {},
-    extraContext?: string
-  ): Promise<string> => {
-    const temp = agentTemps[role];
-    if (provider === 'gemini') {
-      return runGeminiAgent(role, data, lang, currentSymbol, reports, temp, extraContext);
-    } else {
-      return runDeepSeekAgent(role, data, lang, currentSymbol, reports, deepseekKey, temp, extraContext);
-    }
-  };
-
-  const startAnalysis = useCallback(async () => {
-    if (marketData.length === 0 || isAnalyzing) return;
-    
-    if (provider === 'deepseek' && !deepseekKey && !process.env.DEEPSEEK_API_KEY) {
-        setError("Please enter a DeepSeek API Key in the header.");
-        return;
-    }
-
-    setIsAnalyzing(true);
-    setError(null);
-    setFinalDecision(null);
-
-    setAgents(INITIAL_AGENTS.map(a => ({
-      ...a,
-      name: translations[language].agentNames[a.id],
-      description: translations[language].agentDescs[a.id]
-    })));
-
-    try {
-      // Step 0: Fetch Extra Live Data
-      let depthDataStr = "";
-      let fundingDataStr = "";
-      let onChainDataStr = "";
-      
-      try {
-          const [orderBook, fundingRate, ethData] = await Promise.all([
-              fetchOrderBook(symbol),
-              fetchFundingRate(symbol),
-              fetchEthereumData() 
-          ]);
-
-          // Update State for UI
-          setExtraData({
-            funding: fundingRate,
-            gas: ethData
-          });
-
-          if (orderBook) {
-             depthDataStr = "Top 10 Bids:\n" + orderBook.bids.slice(0,10).map(b => `Price: ${b[0]}, Vol: ${b[1]}`).join('\n') + 
-                            "\nTop 10 Asks:\n" + orderBook.asks.slice(0,10).map(a => `Price: ${a[0]}, Vol: ${a[1]}`).join('\n');
-          }
-
-          if (fundingRate) {
-             fundingDataStr = `Current Funding Rate: ${fundingRate.lastFundingRate}\nNext Funding Time: ${new Date(fundingRate.nextFundingTime).toLocaleTimeString()}`;
-          }
-
-          if (ethData) {
-             onChainDataStr = `ETH Gas (Gwei) - Safe: ${ethData.safeGasPrice}, Propose: ${ethData.proposeGasPrice}, Fast: ${ethData.fastGasPrice}`;
-          }
-
-      } catch (e) {
-          console.warn("Failed to fetch extra market data, proceeding with candles only.", e);
-      }
-
-      // Step 1: Tier 1 Analysts
-      const tier1Roles = [AgentRole.SHORT_TERM, AgentRole.LONG_TERM, AgentRole.QUANT, AgentRole.ON_CHAIN, AgentRole.MACRO];
-      
-      tier1Roles.forEach(r => updateAgentStatus(r, AgentStatus.THINKING));
-      
-      const tier1Results = await Promise.all(tier1Roles.map(async (role) => {
-        try {
-           let extraContext = undefined;
-           if (role === AgentRole.SHORT_TERM) extraContext = depthDataStr;
-           if (role === AgentRole.QUANT) extraContext = fundingDataStr;
-           if (role === AgentRole.ON_CHAIN) extraContext = onChainDataStr;
-
-           const output = await executeAgent(role, marketData, language, symbol, {}, extraContext);
-           updateAgentStatus(role, AgentStatus.COMPLETED, output);
-           return { role, output };
-        } catch (e) {
-           console.error(e);
-           updateAgentStatus(role, AgentStatus.ERROR, t.failed);
-           return { role, output: "Failed" };
-        }
-      }));
-
-      await new Promise(r => setTimeout(r, SIMULATION_DELAY));
-
-      // Step 2: Tier 2 Managers
-      const managers = [
-        { role: AgentRole.TECH_MANAGER, inputs: [AgentRole.SHORT_TERM, AgentRole.LONG_TERM, AgentRole.QUANT] },
-        { role: AgentRole.FUND_MANAGER, inputs: [AgentRole.ON_CHAIN, AgentRole.MACRO] }
-      ];
-
-      managers.forEach(m => updateAgentStatus(m.role, AgentStatus.THINKING));
-
-      const tier2Results = await Promise.all(managers.map(async (m) => {
-         const inputReports: Record<string, string> = {};
-         m.inputs.forEach(inputRole => {
-             const res = tier1Results.find(r => r.role === inputRole);
-             if (res && res.output && res.output !== "Failed") {
-                inputReports[inputRole] = res.output;
-             } else {
-                inputReports[inputRole] = "Analysis unavailable due to error.";
-             }
-         });
-
-         try {
-             const output = await executeAgent(m.role, marketData, language, symbol, inputReports);
-             updateAgentStatus(m.role, AgentStatus.COMPLETED, output);
-             return { role: m.role, output };
-         } catch (e) {
-             console.error(e);
-             updateAgentStatus(m.role, AgentStatus.ERROR, t.failed);
-             return { role: m.role, output: "Failed" };
-         }
-      }));
-
-      await new Promise(r => setTimeout(r, SIMULATION_DELAY));
-
-      // Step 3: Risk Manager
-      updateAgentStatus(AgentRole.RISK_MANAGER, AgentStatus.THINKING);
-      
-      const riskInputs: Record<string, string> = {};
-      tier2Results.forEach(res => {
-        if (res.output && res.output !== "Failed") {
-            riskInputs[res.role] = res.output;
-        } else {
-            riskInputs[res.role] = "Manager report unavailable due to error.";
-        }
-      });
-
-      let riskOutput = "Risk Analysis Failed";
-      try {
-        riskOutput = await executeAgent(AgentRole.RISK_MANAGER, marketData, language, symbol, riskInputs);
-        updateAgentStatus(AgentRole.RISK_MANAGER, AgentStatus.COMPLETED, riskOutput);
-      } catch (e) {
-        console.error(e);
-        updateAgentStatus(AgentRole.RISK_MANAGER, AgentStatus.ERROR, t.failed);
-      }
-
-      await new Promise(r => setTimeout(r, SIMULATION_DELAY));
-
-      // Step 4: CEO
-      updateAgentStatus(AgentRole.CEO, AgentStatus.THINKING);
-      
-      const ceoInputs: Record<string, string> = { ...riskInputs };
-      ceoInputs[AgentRole.RISK_MANAGER] = riskOutput;
-
-      try {
-          const ceoOutputRaw = await executeAgent(AgentRole.CEO, marketData, language, symbol, ceoInputs);
-          
-          let decision: TradingDecision;
-          try {
-              const cleanJson = ceoOutputRaw.replace(/```json/g, '').replace(/```/g, '').trim();
-              decision = JSON.parse(cleanJson);
-          } catch (e) {
-              console.error("JSON Parse error", e);
-              decision = {
-                  action: "WAIT",
-                  confidence: 0,
-                  entryPrice: "N/A",
-                  stopLoss: "N/A",
-                  takeProfit: "N/A",
-                  reasoning: "Failed to parse CEO decision format. Raw: " + ceoOutputRaw
-              };
-          }
-
-          const displayOutput = language === 'zh' 
-            ? `决策: ${decision.action}\n置信度: ${decision.confidence}%\n理由: ${decision.reasoning}`
-            : `DECISION: ${decision.action}\nCONFIDENCE: ${decision.confidence}%\nREASON: ${decision.reasoning}`;
-
-          updateAgentStatus(AgentRole.CEO, AgentStatus.COMPLETED, displayOutput);
-          setFinalDecision(decision);
-
-      } catch (e) {
-          console.error(e);
-          updateAgentStatus(AgentRole.CEO, AgentStatus.ERROR, t.ceoUnavailable);
-      }
-
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [marketData, isAnalyzing, agents, language, t, provider, symbol, deepseekKey, agentTemps]);
 
   const analysts = agents.filter(a => 
     [AgentRole.SHORT_TERM, AgentRole.LONG_TERM, AgentRole.QUANT, AgentRole.ON_CHAIN, AgentRole.MACRO].includes(a.id)
@@ -343,13 +171,13 @@ const App: React.FC = () => {
         {/* Left Column: Chart & Controls */}
         <div className="w-full lg:w-1/3 flex flex-col gap-6">
           <div className="flex-1 min-h-[300px] bg-crypto-card rounded-lg border border-gray-800 shadow-lg overflow-hidden">
-             <Chart data={marketData} language={language} symbol={symbol} />
+             <Chart data={processedMarketData} language={language} symbol={symbol} />
           </div>
 
           <div className="bg-crypto-card rounded-lg border border-gray-800 p-6 shadow-lg">
             <h2 className="text-lg font-bold text-white mb-4">{t.controlTitle}</h2>
             
-            {/* New Market Metrics Panel */}
+            {/* Market Metrics Panel */}
             {(extraData.funding || extraData.gas) && (
               <div className="mb-4 grid grid-cols-2 gap-3 animate-[fadeIn_0.5s_ease-out]">
                  <div className="bg-gray-900 p-3 rounded border border-gray-700">
@@ -366,6 +194,52 @@ const App: React.FC = () => {
                  </div>
               </div>
             )}
+            
+            {/* User Position Panel */}
+            <div className="mb-6 bg-gray-900/50 p-4 rounded border border-dashed border-gray-700">
+               <div className="flex justify-between items-center mb-2">
+                 <span className="text-xs text-gray-400 uppercase tracking-wider font-bold">{t.currentPosition}</span>
+                 {userPosition ? (
+                    <button 
+                      onClick={() => setShowPositionModal(true)}
+                      className="text-[10px] text-crypto-accent hover:underline"
+                    >
+                      {t.editPosition}
+                    </button>
+                 ) : (
+                    <button 
+                      onClick={() => setShowPositionModal(true)}
+                      className="text-[10px] bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded border border-gray-600 transition-colors"
+                    >
+                      {t.setPosition}
+                    </button>
+                 )}
+               </div>
+               
+               {userPosition ? (
+                  <div className="grid grid-cols-3 gap-2 text-sm font-mono">
+                     <div className={`font-bold ${userPosition.type === 'LONG' ? 'text-crypto-green' : 'text-crypto-red'}`}>
+                        {userPosition.type}
+                     </div>
+                     <div className="text-white text-center">
+                        ${userPosition.entryPrice}
+                     </div>
+                     <div className="text-yellow-500 text-right">
+                        {userPosition.leverage}x
+                     </div>
+                     {userPosition.liquidationPrice && (
+                        <div className="col-span-3 mt-1 pt-1 border-t border-gray-700/50 text-center flex justify-between px-2">
+                           <span className="text-[10px] text-gray-500">{t.liquidationPrice}:</span>
+                           <span className="text-red-400 font-bold font-mono">{userPosition.liquidationPrice}</span>
+                        </div>
+                     )}
+                  </div>
+               ) : (
+                  <div className="text-xs text-gray-600 italic text-center py-1">
+                    {t.noPosition}
+                  </div>
+               )}
+            </div>
 
             <p className="text-sm text-gray-400 mb-6">{t.controlDesc}</p>
             
@@ -469,7 +343,7 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {finalDecision && showSettings === false && (
+      {finalDecision && showSettings === false && showPositionModal === false && (
         <DecisionModal 
           decision={finalDecision} 
           language={language}
@@ -482,7 +356,18 @@ const App: React.FC = () => {
           language={language}
           agentTemps={agentTemps}
           setAgentTemps={setAgentTemps}
+          etherscanKey={etherscanKey}
+          setEtherscanKey={setEtherscanKey}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showPositionModal && (
+        <PositionModal
+          language={language}
+          currentPosition={userPosition}
+          onSave={setUserPosition}
+          onClose={() => setShowPositionModal(false)}
         />
       )}
     </div>

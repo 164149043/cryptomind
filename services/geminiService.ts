@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { AgentRole, Kline, Language } from "../types";
+import { AgentRole, Kline, Language, UserPosition } from "../types";
 import { createAgentPrompt, formatDataForPrompt } from "./prompts";
 
 const getAI = () => {
@@ -20,7 +20,8 @@ export const runGeminiAgent = async (
   symbol: string,
   upstreamReports: Record<string, string> = {},
   temperature: number = 0.7,
-  extraContext?: string // New parameter
+  extraContext?: string,
+  userPosition?: UserPosition | null
 ): Promise<string> => {
   const ai = getAI();
   const modelId = 'gemini-2.5-flash'; 
@@ -33,7 +34,7 @@ export const runGeminiAgent = async (
     reportsStr += `--- Report from ${r} ---\n${content}\n`;
   });
 
-  const prompt = createAgentPrompt(role, dataStr, language, symbol, reportsStr, extraContext);
+  const prompt = createAgentPrompt(role, dataStr, language, symbol, reportsStr, extraContext, userPosition);
 
   let responseSchema: any = undefined;
   let responseMimeType: string | undefined = undefined;

@@ -1,9 +1,9 @@
 
-import { AgentRole, Kline, Language } from "../types";
+import { AgentRole, Kline, Language, UserPosition } from "../types";
 
 // --- Technical Indicator Helpers ---
 
-const calculateSMA = (data: number[], period: number): number[] => {
+export const calculateSMA = (data: number[], period: number): number[] => {
   const sma = [];
   for (let i = 0; i < data.length; i++) {
     if (i < period - 1) {
@@ -17,7 +17,7 @@ const calculateSMA = (data: number[], period: number): number[] => {
   return sma;
 };
 
-const calculateStdDev = (data: number[], period: number, sma: number[]): number[] => {
+export const calculateStdDev = (data: number[], period: number, sma: number[]): number[] => {
   const stdDevs = [];
   for (let i = 0; i < data.length; i++) {
     if (i < period - 1) {
@@ -33,7 +33,7 @@ const calculateStdDev = (data: number[], period: number, sma: number[]): number[
   return stdDevs;
 };
 
-const calculateRSI = (prices: number[], period: number = 14): number[] => {
+export const calculateRSI = (prices: number[], period: number = 14): number[] => {
   const rsi = [];
   let gains = 0;
   let losses = 0;
@@ -70,7 +70,7 @@ const calculateRSI = (prices: number[], period: number = 14): number[] => {
 };
 
 export const formatDataForPrompt = (klines: Kline[]): string => {
-  // We need enough history to calc indicators, even if we only show the last 24 candles
+  // We need enough history to calc indicators, even if we only show the last 48 candles in prompt
   const closes = klines.map(k => k.close);
   
   const sma20 = calculateSMA(closes, 20);
@@ -99,7 +99,8 @@ export const formatDataForPrompt = (klines: Kline[]): string => {
     const bbLower = isNaN(lowerBand[globalIndex]) ? '-' : lowerBand[globalIndex].toFixed(2);
     const smaVal = isNaN(sma20[globalIndex]) ? '-' : sma20[globalIndex].toFixed(2);
 
-    str += `[T-${sliceLen - 1 - i}] Time: ${new Date(k.time).toISOString()} | Price: ${k.close} (Chg: ${change}%) | Vol: ${k.volume.toFixed(0)} | RSI(14): ${rsiVal} | BB(20,2): [${bbLower} - ${bbUpper}] | SMA(20): ${smaVal}\n`;
+    // Added High/Low to allow agents to detect wicks (pins)
+    str += `[T-${sliceLen - 1 - i}] Time: ${new Date(k.time).toISOString()} | Open: ${k.open} | High: ${k.high} | Low: ${k.low} | Close: ${k.close} (Chg: ${change}%) | Vol: ${k.volume.toFixed(0)} | RSI(14): ${rsiVal} | BB(20,2): [${bbLower} - ${bbUpper}] | SMA(20): ${smaVal}\n`;
   });
   return str;
 };
@@ -111,7 +112,8 @@ export const createAgentPrompt = (
   language: Language, 
   symbol: string, 
   inputReports?: string,
-  extraData?: string // New: For Order Book / Funding Rates / OnChain Data
+  extraData?: string, // New: For Order Book / Funding Rates / OnChain Data
+  userPosition?: UserPosition | null
 ): string => {
   const isZh = language === 'zh';
   const langInstruction = isZh ? "You MUST output your analysis in Chinese (Simplified)." : "Output in English.";
@@ -121,17 +123,35 @@ export const createAgentPrompt = (
     ? `你是一名拥有20年经验的华尔街顶级加密货币交易员。你现在的任务是拯救一个面临破产的基金，每一笔交易都必须极其精准。不要使用模棱两可的废话，直接给出硬核的逻辑判断。`
     : `You are a top-tier Wall Street crypto trader with 20 years of experience. Your task is to save a fund facing bankruptcy; every trade must be surgically precise. Do not use ambiguous fluff. Give hardcore, logical judgments.`;
 
+  const positionContext = userPosition 
+    ? `
+    \n==========================================
+    🚨 **CRITICAL CONTEXT: USER HOLDING POSITION** 🚨
+    User currently holds a **${userPosition.type}** position.
+    Entry Price: ${userPosition.entryPrice}
+    Leverage: ${userPosition.leverage}x
+    Liquidation Price: ${userPosition.liquidationPrice || 'Not set'}
+    
+    You MUST take this into account. 
+    - If price is approaching Liquidation Price (${userPosition.liquidationPrice || 'N/A'}), prioritize RISK REDUCTION.
+    - If your analysis opposes this position, warn immediately (suggest closing).
+    - If your analysis confirms this position, suggest holding or adding.
+    ==========================================\n`
+    : '';
+
   switch (role) {
     case AgentRole.SHORT_TERM:
       return `
         ${basePersona}
+        ${positionContext}
         **ROLE: Elite Scalper (Short-Term Analyst)**
         
         **OBJECTIVE:**
         Analyze the provided 1H candle data for ${symbol} to find immediate setups (1-4 hours).
         
         **SPECIFIC TASKS:**
-        1. **Pattern Recognition:** Look for specific patterns: Bull/Bear Flags, Pennants, or **Liquidity Sweeps (SFP)** at highs/lows.
+        1. **Pattern Recognition:** Look for specific patterns: Bull/Bear Flags, Pennants, or **Liquidity Sweeps (SFP)**.
+           - **CRITICAL:** Pay close attention to the 'High' and 'Low' values in the data. A large difference between Low and Close indicates a "Wick" or "Pin Bar" (插针), suggesting strong rejection.
         2. **Volume Analysis:** Does volume confirm price moves? (e.g., Rising price with falling volume = divergence/weakness).
         3. **Indicator Confluence:** Check the RSI provided in the data. Is it >70 (Overbought) or <30 (Oversold)? Is price tagging the Bollinger Bands?
         
@@ -148,6 +168,7 @@ export const createAgentPrompt = (
     case AgentRole.LONG_TERM:
       return `
         ${basePersona}
+        ${positionContext}
         **ROLE: Trend Following Strategist (Long-Term Analyst)**
         
         **OBJECTIVE:**
@@ -169,6 +190,7 @@ export const createAgentPrompt = (
     case AgentRole.QUANT:
       return `
         ${basePersona}
+        ${positionContext}
         **ROLE: Quantitative Analyst (Statistical Arbitrage)**
         
         **OBJECTIVE:**
@@ -196,6 +218,7 @@ export const createAgentPrompt = (
     case AgentRole.ON_CHAIN:
       return `
         ${basePersona}
+        ${positionContext}
         **ROLE: On-Chain & Whale Tracker**
         
         **OBJECTIVE:**
@@ -220,6 +243,7 @@ export const createAgentPrompt = (
     case AgentRole.MACRO:
       return `
         ${basePersona}
+        ${positionContext}
         **ROLE: Global Macro Strategist**
         
         **OBJECTIVE:**
@@ -241,6 +265,7 @@ export const createAgentPrompt = (
     case AgentRole.TECH_MANAGER:
       return `
         ${basePersona}
+        ${positionContext}
         **ROLE: Technical Strategy Manager**
         
         **OBJECTIVE:**
@@ -262,6 +287,7 @@ export const createAgentPrompt = (
     case AgentRole.FUND_MANAGER:
       return `
         ${basePersona}
+        ${positionContext}
         **ROLE: Fundamental Strategy Manager**
         
         **OBJECTIVE:**
@@ -282,6 +308,7 @@ export const createAgentPrompt = (
     case AgentRole.RISK_MANAGER:
       return `
         ${basePersona}
+        ${positionContext}
         **ROLE: Risk Manager (The Veto Power)**
         
         **OBJECTIVE:**
@@ -291,6 +318,7 @@ export const createAgentPrompt = (
         - **R:R Calculation:** (Take Profit - Entry) / (Entry - Stop Loss).
         - **Minimum Requirement:** R:R must be > 1.5. If not, REJECT the trade.
         - **Stop Loss:** Must be placed below support (Long) or above resistance (Short).
+        ${userPosition ? `- **EXISTING POSITION CHECK:** User is ${userPosition.type} from ${userPosition.entryPrice}. If market is moving against them, advise on **Stop Loss** placement immediately. If moving in favor, advise on **Trailing Stop**. CHECK LIQUIDATION PRICE (${userPosition.liquidationPrice || 'N/A'}).` : ''}
         
         **MANAGER REPORTS:**
         ${inputReports}
@@ -303,6 +331,7 @@ export const createAgentPrompt = (
     case AgentRole.CEO:
       return `
         ${basePersona}
+        ${positionContext}
         **ROLE: CEO & Execution Algorithm**
         
         **OBJECTIVE:**
@@ -315,14 +344,16 @@ export const createAgentPrompt = (
         - If Risk Manager says "REJECTED", action is "WAIT".
         - If Risk Manager says "APPROVED", action is "LONG" or "SHORT" based on Technical Manager.
         - **Confidence:** Average of Tech + Fund Manager sentiment (0-100).
+        ${userPosition ? `- **POSITION MANAGEMENT:** Since user holds a ${userPosition.type} position, if your new signal is OPPOSITE, you must explain if they should CLOSE. If signal matches, suggest HOLDING or ADDING.` : ''}
 
         **REASONING GUIDELINES:**
         - Provide a detailed explanation (2-3 sentences) justifying the final decision.
         - You MUST explicitly mention the Confidence Score and the key factors driving it.
         - You MUST reference the Entry, Stop Loss, and Take Profit levels in your reasoning to confirm the plan.
+        ${isZh ? "**LANGUAGE REQUIREMENT:** The values for 'reasoning', 'entryPrice', 'stopLoss', and 'takeProfit' MUST be in CHINESE (Simplified)." : "**LANGUAGE REQUIREMENT:** All string values MUST be in English."}
         
         **OUTPUT FORMAT:**
-        You MUST output ONLY valid JSON (no markdown, no text before/after).
+        You MUST output ONLY valid JSON. Do NOT include markdown formatting like \`\`\`json.
         {
           "action": "LONG" | "SHORT" | "WAIT",
           "confidence": number,

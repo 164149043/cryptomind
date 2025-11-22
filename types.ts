@@ -62,6 +62,13 @@ export interface AgentState {
   parentId?: AgentRole; // For hierarchy visualization
 }
 
+export interface UserPosition {
+  type: 'LONG' | 'SHORT';
+  entryPrice: string;
+  leverage: string;
+  liquidationPrice?: string;
+}
+
 export interface TradingDecision {
   action: 'LONG' | 'SHORT' | 'WAIT';
   confidence: number; // 0-100

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+
+import React, { useEffect, useRef, useState } from 'react';
 import { AgentState, AgentStatus, AgentRole, Language } from '../types';
 import { translations } from '../locales';
 
@@ -10,12 +11,52 @@ interface AgentNodeProps {
 export const AgentNode: React.FC<AgentNodeProps> = ({ agent, language }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const t = translations[language];
+  
+  // Typewriter state
+  const [displayedText, setDisplayedText] = useState('');
 
+  // Auto-scroll when text updates
   useEffect(() => {
-    if (scrollRef.current && agent.output) {
+    if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [agent.output]);
+  }, [displayedText]);
+
+  // Reset text when thinking or idle
+  useEffect(() => {
+    if (agent.status === AgentStatus.THINKING || agent.status === AgentStatus.IDLE) {
+      setDisplayedText('');
+    }
+  }, [agent.status]);
+
+  // Typewriter effect logic
+  useEffect(() => {
+    if (agent.status === AgentStatus.COMPLETED && agent.output) {
+        // If we already have text displayed matching output, don't restart
+        if (displayedText === agent.output) return;
+
+        setDisplayedText('');
+        let index = 0;
+        const fullText = agent.output;
+        // Speed: 5ms delay, 2 chars per tick = fast but smooth typing
+        const speed = 5; 
+        const chunk = 2; 
+
+        const interval = setInterval(() => {
+            if (index < fullText.length) {
+                index += chunk;
+                setDisplayedText(fullText.slice(0, index));
+            } else {
+                setDisplayedText(fullText); // Ensure full text is set
+                clearInterval(interval);
+            }
+        }, speed);
+
+        return () => clearInterval(interval);
+    } else if (agent.status === AgentStatus.ERROR) {
+        setDisplayedText(agent.output || 'Error');
+    }
+  }, [agent.output, agent.status]);
 
   const getStatusColor = (status: AgentStatus) => {
     switch (status) {
@@ -71,18 +112,16 @@ export const AgentNode: React.FC<AgentNodeProps> = ({ agent, language }) => {
 
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto font-mono text-[10px] leading-4 text-gray-400 custom-scrollbar"
+        className={`flex-1 overflow-y-auto font-mono leading-relaxed custom-scrollbar ${isCEO ? 'text-sm text-white' : 'text-xs text-gray-300'}`}
       >
         {agent.status === AgentStatus.THINKING ? (
-            <span className="text-crypto-accent animate-pulse">{t.analyzing}</span>
-        ) : agent.output ? (
-             isCEO ? (
-                 <div className="text-xs text-white whitespace-pre-wrap">{agent.output}</div>
-             ) : (
-                 agent.output
-             )
+            <span className="text-crypto-accent animate-pulse text-xs">{t.analyzing}</span>
+        ) : displayedText ? (
+             <div className="whitespace-pre-wrap">
+                 {displayedText}
+             </div>
         ) : (
-            <span className="text-gray-700">{t.waiting}</span>
+            <span className="text-gray-700 text-xs">{t.waiting}</span>
         )}
       </div>
     </div>

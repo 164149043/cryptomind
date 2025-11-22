@@ -178,19 +178,12 @@ export const fetchFundingRate = async (symbol: string = 'BTCUSDT'): Promise<Fund
       nextFundingTime: data.nextFundingTime
     };
   } catch (error) {
-    // Silent fail for funding rate as it is often blocked and less critical than price
-    // console.warn("Failed to fetch Funding Rate (likely CORS), skipping:", error);
     return null;
   }
 };
 
 export const subscribeToMarketData = (symbol: string, onUpdate: (kline: Kline) => void) => {
   const cleanSymbol = symbol.replace('/', '').toLowerCase();
-  
-  // Futures WebSocket URL: wss://fstream.binance.com/ws
-  // Spot WebSocket URL: wss://stream.binance.com/ws
-  
-  // We try Futures stream first.
   const wsUrl = `wss://fstream.binance.com/ws/${cleanSymbol}@kline_${INTERVAL}`;
   
   let ws: WebSocket | null = null;
@@ -226,11 +219,6 @@ export const subscribeToMarketData = (symbol: string, onUpdate: (kline: Kline) =
     }
   };
 
-  ws.onerror = (event: Event) => {
-     // If Futures WS fails, we could try Spot, but typically if REST works, WS works.
-     // console.error(`Binance WS connection error for ${cleanSymbol}.`);
-  };
-
   return () => {
     if (ws) {
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
@@ -241,30 +229,44 @@ export const subscribeToMarketData = (symbol: string, onUpdate: (kline: Kline) =
   };
 };
 
+// Realistic Random Walk Mock Data
 const generateMockData = (symbol: string = 'BTCUSDT'): Kline[] => {
   const klines: Kline[] = [];
-  let price = 95000;
-
   const s = symbol.toUpperCase();
-
-  // Estimate price based on symbol to avoid showing BTC price for ETH
+  
+  // Base price based on symbol
+  let price = 95000;
   if (s.includes('ETH')) price = 3300;
   else if (s.includes('SOL')) price = 180;
   else if (s.includes('BNB')) price = 600;
   else if (s.includes('XRP')) price = 2.5;
-  else if (s.includes('DOGE')) price = 0.3;
-  else if (s.includes('ADA')) price = 0.8;
-  else if (s.includes('DOT')) price = 7;
   
+  // Start time
   let time = Date.now() - (LIMIT * 60 * 60 * 1000);
   
+  // Initial price for iteration
+  let currentPrice = price;
+
   for (let i = 0; i < LIMIT; i++) {
-    const move = (Math.random() - 0.5) * (price * 0.02); // 2% volatility
-    const open = price;
-    const close = price + move;
-    const high = Math.max(open, close) + Math.random() * (price * 0.01);
-    const low = Math.min(open, close) - Math.random() * (price * 0.01);
-    const volume = Math.random() * 1000 + 100;
+    // Volatility factor (approx 0.5% - 1.5% per candle)
+    const volatility = currentPrice * 0.01; 
+    
+    // Random Walk: Change from previous close
+    const change = (Math.random() - 0.5) * volatility; 
+    
+    // Open is strictly previous close to look continuous (except first one)
+    const open = i === 0 ? currentPrice : klines[i-1].close;
+    const close = open + change;
+    
+    // Wicks: High must be >= max(open, close), Low must be <= min(open, close)
+    // Add some random range extension
+    const bodyMax = Math.max(open, close);
+    const bodyMin = Math.min(open, close);
+    
+    const high = bodyMax + (Math.random() * volatility * 0.3);
+    const low = bodyMin - (Math.random() * volatility * 0.3);
+    
+    const volume = Math.random() * 5000 + 500;
     
     klines.push({
       time,
@@ -275,8 +277,7 @@ const generateMockData = (symbol: string = 'BTCUSDT'): Kline[] => {
       volume
     });
     
-    price = close;
-    time += 3600000;
+    time += 3600000; // 1 Hour
   }
   return klines;
 };

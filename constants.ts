@@ -6,7 +6,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.SHORT_TERM,
     name: 'Short-Term Analyst',
-    description: 'Price Action, Liquidity Sweeps (SFP), Order Book Walls.',
+    description: 'Spot short-term setups via PA, SFP, and order depth.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.TECH_MANAGER
@@ -14,7 +14,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.LONG_TERM,
     name: 'Trend Analyst',
-    description: 'Market Structure (HH/HL), Weekly/Daily Supply & Demand.',
+    description: 'Analyze market structure (HH/HL) and supply/demand.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.TECH_MANAGER
@@ -22,7 +22,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.QUANT,
     name: 'Quant Analyst',
-    description: 'Funding Rate Squeezes, Z-Score Mean Reversion, Volatility.',
+    description: 'Assess stats via funding rates, Z-scores, and volatility.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.TECH_MANAGER
@@ -30,7 +30,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.ON_CHAIN,
     name: 'On-Chain Analyst',
-    description: 'Gas Fees correlation, Exchange Flows, Whale Tracking.',
+    description: 'Track whale moves, exchange flows, and gas correlation.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.FUND_MANAGER
@@ -38,7 +38,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.MACRO,
     name: 'Macro Analyst',
-    description: 'Risk-On/Risk-Off Regime, Global Liquidity Context.',
+    description: 'Assess global risk regime and liquidity context.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.FUND_MANAGER
@@ -47,7 +47,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.TECH_MANAGER,
     name: 'Technical Manager',
-    description: 'Synthesizes Structure, Momentum & Stats into a Setup.',
+    description: 'Synthesize technicals to define optimal trade setups.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.RISK_MANAGER
@@ -55,7 +55,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.FUND_MANAGER,
     name: 'Fundamental Manager',
-    description: 'Validates trade quality via On-Chain & Macro sentiment.',
+    description: 'Validate trade quality via on-chain & macro data.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.RISK_MANAGER
@@ -64,7 +64,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.RISK_MANAGER,
     name: 'Risk Manager',
-    description: 'Calculates R:R Ratio. Vetoes trades with < 1.5 R:R.',
+    description: 'Enforce R:R > 1.5 and veto high-risk setups.',
     status: AgentStatus.IDLE,
     output: null,
     parentId: AgentRole.CEO
@@ -73,7 +73,7 @@ export const INITIAL_AGENTS: AgentState[] = [
   {
     id: AgentRole.CEO,
     name: 'General Manager (CEO)',
-    description: 'Executes final signal strictly based on Risk parameters.',
+    description: 'Execute final strategy based on risk and intelligence.',
     status: AgentStatus.IDLE,
     output: null
   }

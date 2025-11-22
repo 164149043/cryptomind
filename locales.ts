@@ -37,6 +37,22 @@ export const translations = {
     randomnessSettings: "Agent Randomness (Temperature)",
     randomnessDesc: "Adjust the creativity and variability of each agent. Higher values (e.g. 1.0) make agents more creative but less deterministic. Lower values (e.g. 0.2) make them more focused and consistent.",
     close: "Close",
+    
+    // Position Settings
+    positionSettings: "Current Position Settings",
+    currentPosition: "Current Position",
+    setPosition: "Set Position",
+    editPosition: "Edit Position",
+    noPosition: "No Active Position",
+    positionType: "Type",
+    entryPrice: "Entry Price",
+    myLeverage: "My Leverage",
+    liquidationPrice: "Liquidation Price",
+    save: "Save",
+    clear: "Clear Position",
+    long: "LONG",
+    short: "SHORT",
+
     agentNames: {
       [AgentRole.SHORT_TERM]: "Short-Term Analyst",
       [AgentRole.LONG_TERM]: "Trend Analyst",
@@ -49,15 +65,15 @@ export const translations = {
       [AgentRole.CEO]: "General Manager (CEO)"
     },
     agentDescs: {
-      [AgentRole.SHORT_TERM]: "Price Action, Liquidity Sweeps (SFP), Order Book Walls.",
-      [AgentRole.LONG_TERM]: "Market Structure (HH/HL), Weekly/Daily Supply & Demand.",
-      [AgentRole.QUANT]: "Funding Rate Squeezes, Z-Score Mean Reversion, Volatility.",
-      [AgentRole.ON_CHAIN]: "Gas Fees correlation, Exchange Flows, Whale Tracking.",
-      [AgentRole.MACRO]: "Risk-On/Risk-Off Regime, Global Liquidity Context.",
-      [AgentRole.TECH_MANAGER]: "Synthesizes Structure, Momentum & Stats into a Setup.",
-      [AgentRole.FUND_MANAGER]: "Validates trade quality via On-Chain & Macro sentiment.",
-      [AgentRole.RISK_MANAGER]: "Calculates R:R Ratio. Vetoes trades with < 1.5 R:R.",
-      [AgentRole.CEO]: "Executes final signal strictly based on Risk parameters."
+      [AgentRole.SHORT_TERM]: "Spot short-term setups via PA, SFP, and order depth.",
+      [AgentRole.LONG_TERM]: "Analyze market structure (HH/HL) and supply/demand.",
+      [AgentRole.QUANT]: "Assess stats via funding rates, Z-scores, and volatility.",
+      [AgentRole.ON_CHAIN]: "Track whale moves, exchange flows, and gas correlation.",
+      [AgentRole.MACRO]: "Assess global risk regime and liquidity context.",
+      [AgentRole.TECH_MANAGER]: "Synthesize technicals to define optimal trade setups.",
+      [AgentRole.FUND_MANAGER]: "Validate trade quality via on-chain & macro data.",
+      [AgentRole.RISK_MANAGER]: "Enforce R:R > 1.5 and veto high-risk setups.",
+      [AgentRole.CEO]: "Execute final strategy based on risk and intelligence."
     }
   },
   zh: {
@@ -95,6 +111,22 @@ export const translations = {
     randomnessSettings: "智能体随机性设置 (Temperature)",
     randomnessDesc: "调整每个智能体的创造性和变化率。较高的值 (如 1.0) 会使智能体更具创造性但结果不确定；较低的值 (如 0.2) 会使其更专注且一致。",
     close: "关闭",
+
+    // Position Settings
+    positionSettings: "当前持仓设置",
+    currentPosition: "当前持仓",
+    setPosition: "设置持仓",
+    editPosition: "编辑持仓",
+    noPosition: "无持仓",
+    positionType: "方向",
+    entryPrice: "开仓均价",
+    myLeverage: "我的杠杆",
+    liquidationPrice: "强平价格",
+    save: "保存配置",
+    clear: "清空持仓",
+    long: "多单 (LONG)",
+    short: "空单 (SHORT)",
+
     agentNames: {
       [AgentRole.SHORT_TERM]: "短期分析师",
       [AgentRole.LONG_TERM]: "趋势分析师",
@@ -107,15 +139,15 @@ export const translations = {
       [AgentRole.CEO]: "总经理 (CEO)"
     },
     agentDescs: {
-      [AgentRole.SHORT_TERM]: "价格行为(PA)，流动性掠夺(SFP)，订单簿墙分析。",
-      [AgentRole.LONG_TERM]: "市场结构(HH/HL)，周线/日线供需区分析。",
-      [AgentRole.QUANT]: "资金费率挤压(Squeeze)分析，Z-Score均值回归，波动率。",
-      [AgentRole.ON_CHAIN]: "Gas费率关联，交易所资金流向，鲸鱼追踪。",
-      [AgentRole.MACRO]: "Risk-On/Risk-Off 市场体制，全球流动性背景。",
-      [AgentRole.TECH_MANAGER]: "综合结构、动能与统计数据，构建交易计划。",
-      [AgentRole.FUND_MANAGER]: "通过链上与宏观情绪验证交易质量。",
-      [AgentRole.RISK_MANAGER]: "计算盈亏比(R:R)。否决低于 1.5 R:R 的交易。",
-      [AgentRole.CEO]: "严格基于风控参数执行最终信号。"
+      [AgentRole.SHORT_TERM]: "利用PA、SFP和订单深度捕捉短线机会。",
+      [AgentRole.LONG_TERM]: "分析市场结构(HH/HL)及主要供需区。",
+      [AgentRole.QUANT]: "基于资金费率和波动率评估统计概率。",
+      [AgentRole.ON_CHAIN]: "追踪鲸鱼动向、交易所流向及Gas关联。",
+      [AgentRole.MACRO]: "评估全球风险偏好及流动性环境。",
+      [AgentRole.TECH_MANAGER]: "整合技术信号，制定最佳交易计划。",
+      [AgentRole.FUND_MANAGER]: "结合链上与宏观数据验证交易质量。",
+      [AgentRole.RISK_MANAGER]: "执行R:R > 1.5标准，否决高风险交易。",
+      [AgentRole.CEO]: "基于综合情报与风控参数执行最终决策。"
     }
   }
 };

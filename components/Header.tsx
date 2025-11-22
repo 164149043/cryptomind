@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Language, AIProvider } from '../types';
 import { translations } from '../locales';
@@ -64,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="text" 
                 value={tempSymbol}
                 onChange={(e) => setTempSymbol(e.target.value)}
-                className="w-full sm:w-24 bg-gray-900 border border-gray-700 text-white text-sm rounded pl-10 pr-3 py-1.5 focus:border-crypto-accent focus:ring-1 focus:ring-crypto-accent outline-none font-mono uppercase transition-all"
+                className="w-full sm:w-40 bg-gray-900 border border-gray-700 text-white text-sm rounded pl-10 pr-3 py-1.5 focus:border-crypto-accent focus:ring-1 focus:ring-crypto-accent outline-none font-mono uppercase transition-all"
                 placeholder="BTCUSDT"
             />
         </form>
