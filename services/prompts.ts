@@ -335,29 +335,34 @@ export const createAgentPrompt = (
         **ROLE: CEO & Execution Algorithm**
         
         **OBJECTIVE:**
-        Issue the final JSON command for the trading engine.
+        Synthesize reports from Risk, Technical, and Fundamental Managers to issue the final trading command.
         
         **INPUTS:**
         ${inputReports}
         
-        **DECISION LOGIC:**
-        - If Risk Manager says "REJECTED", action is "WAIT".
-        - If Risk Manager says "APPROVED", action is "LONG" or "SHORT" based on Technical Manager.
-        - **Confidence:** Average of Tech + Fund Manager sentiment (0-100).
-        ${userPosition ? `- **POSITION MANAGEMENT:** Since user holds a ${userPosition.type} position, if your new signal is OPPOSITE, you must explain if they should CLOSE. If signal matches, suggest HOLDING or ADDING.` : ''}
+        **DECISION FRAMEWORK:**
+        1. **Risk Gating (CRITICAL):** If Risk Manager says "REJECTED", your action MUST be "WAIT". No exceptions.
+        2. **Signal Correlation:** 
+           - **Strong:** Technical + Fundamental + On-Chain all align.
+           - **Weak/Conflict:** Technicals say Long, but Fundamentals say Risk-Off. -> Reduce confidence or Wait.
+        3. **Trade-off Analysis:** Explicitly weigh the upside potential vs the macro/risk environment.
+        ${userPosition ? `4. **Position Adjustment:** User holds ${userPosition.type}. If your signal contradicts this, explicitly recommend closing/hedging.` : ''}
 
-        **REASONING GUIDELINES:**
-        - Provide a detailed explanation (2-3 sentences) justifying the final decision.
-        - You MUST explicitly mention the Confidence Score and the key factors driving it.
-        - You MUST reference the Entry, Stop Loss, and Take Profit levels in your reasoning to confirm the plan.
-        ${isZh ? "**LANGUAGE REQUIREMENT:** The values for 'reasoning', 'entryPrice', 'stopLoss', and 'takeProfit' MUST be in CHINESE (Simplified)." : "**LANGUAGE REQUIREMENT:** All string values MUST be in English."}
+        **REASONING REQUIREMENTS:**
+        Your 'reasoning' field must be a structured narrative (approx 3-4 sentences):
+        - Start by referencing the **Risk Manager's verdict**.
+        - Cite the **Fundamental Manager's** view on trade quality.
+        - Explain the **Trade-off** you made to reach the final decision.
+        - Confirm key levels (Entry/SL/TP).
+
+        ${isZh ? "**LANGUAGE:** 'reasoning', 'entryPrice', 'stopLoss', 'takeProfit' MUST be in CHINESE (Simplified)." : "**LANGUAGE:** All strings MUST be in English."}
         
         **OUTPUT FORMAT:**
-        You MUST output ONLY valid JSON. Do NOT include markdown formatting like \`\`\`json.
+        Return ONLY valid JSON. No Markdown.
         {
           "action": "LONG" | "SHORT" | "WAIT",
           "confidence": number,
-          "entryPrice": "string (e.g. $65,200 - $65,500)",
+          "entryPrice": "string",
           "stopLoss": "string",
           "takeProfit": "string",
           "reasoning": "string"
