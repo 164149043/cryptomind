@@ -53,27 +53,6 @@ npm install
 
 ### 4. 配置 API Key
 
-本项目依赖 AI 模型的 API Key 才能运行。
-
-**方式 A：通过环境变量配置（推荐）**
-
-在项目根目录下创建一个 `.env` 文件（或修改现有的环境配置文件），添加以下内容：
-
-```env
-# Google Gemini API Key (必须)
-# 获取地址: https://aistudio.google.com/
-API_KEY=AIzaSy...
-
-# DeepSeek API Key (可选，也可以在网页 UI 中直接输入)
-# 获取地址: https://platform.deepseek.com/
-DEEPSEEK_API_KEY=sk-...
-```
-
-**方式 B：通过 UI 配置**
-
-项目启动后，你也可以直接在网页界面的输入框中填入 DeepSeek API Key 和 Etherscan API Key。
-
-### 5. 启动开发服务器
 
 ```bash
 npm start
