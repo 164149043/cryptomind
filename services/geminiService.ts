@@ -4,18 +4,18 @@ import { AgentRole, Kline, Language, UserPosition } from "../types";
 import { createAgentPrompt, formatDataForPrompt } from "./prompts";
 
 const getAI = () => {
-  if (!process.env.API_KEY) {
+  if (!import.meta.env.VITE_GEMINI_API_KEY) {
     throw new Error("API Key not found");
   }
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 };
 
 // Helper for delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const runGeminiAgent = async (
-  role: AgentRole, 
-  marketData: Kline[], 
+  role: AgentRole,
+  marketData: Kline[],
   language: Language,
   symbol: string,
   upstreamReports: Record<string, string> = {},
@@ -24,10 +24,10 @@ export const runGeminiAgent = async (
   userPosition?: UserPosition | null
 ): Promise<string> => {
   const ai = getAI();
-  const modelId = 'gemini-2.5-flash'; 
-  
+  const modelId = 'gemini-2.5-flash';
+
   const dataStr = formatDataForPrompt(marketData);
-  
+
   // Format upstream reports for managers
   let reportsStr = "";
   Object.entries(upstreamReports).forEach(([r, content]) => {
@@ -75,7 +75,7 @@ export const runGeminiAgent = async (
     } catch (error: any) {
       console.warn(`Agent ${role} failed attempt ${attempt + 1}/3:`, error);
       lastError = error;
-      
+
       // Don't retry on certain fatal errors if we could detect them, 
       // but 500/RPC errors are usually retriable.
       if (attempt < 2) {
