@@ -36,7 +36,7 @@ export const runDeepSeekAgent = async (
   let lastError: any;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      // Using deepseek-reasoner
+      // Switched from 'deepseek-reasoner' to 'deepseek-chat'
       const response = await fetch("https://api.deepseek.com/chat/completions", {
         method: "POST",
         headers: {
@@ -44,7 +44,7 @@ export const runDeepSeekAgent = async (
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "deepseek-reasoner", 
+          model: "deepseek-chat", 
           messages: [
             { role: "system", content: "You are a professional crypto trading assistant." },
             { role: "user", content: prompt }

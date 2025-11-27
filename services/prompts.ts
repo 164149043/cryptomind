@@ -249,16 +249,19 @@ export const createAgentPrompt = (
         **OBJECTIVE:**
         Provide the environmental context. Is this a "Risk-On" or "Risk-Off" environment?
         
+        **ACCESS TO TOOLS:**
+        **You have access to Google Search.** You MUST use it to check for the latest breaking news (last 24 hours).
+        
         **SPECIFIC TASKS:**
-        1. **Sentiment Check:** Given the price action of ${symbol} (a risk asset), assume the broader market sentiment.
-        2. **Correlation:** If crypto is dumping while typical risk assets are stable, it's crypto-specific weakness.
-        3. **External Factors:** Briefly consider global liquidity conditions (implied).
+        1. **Search Grounding:** Search for "Crypto market news today", "Bitcoin price analysis news", "SEC crypto news", or specific news related to ${symbol}.
+        2. **Sentiment Check:** Determine if there is FUD (Fear, Uncertainty, Doubt) or FOMO (Greed) driving the market currently.
+        3. **Correlation:** If crypto is dumping while typical risk assets are stable, it's crypto-specific weakness.
         
         **DATA:**
         ${marketDataStr}
         
         **OUTPUT REQUIREMENT:**
-        Concise analysis (max 100 words). Define the market regime: "Risk-On" (Buy dips) or "Risk-Off" (Sell rallies).
+        Concise analysis (max 100 words). Explicitly mention **ONE specific news event** you found via Search that is relevant. Define the market regime: "Risk-On" or "Risk-Off".
         ${langInstruction}
       `;
 

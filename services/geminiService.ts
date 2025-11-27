@@ -4,18 +4,18 @@ import { AgentRole, Kline, Language, UserPosition } from "../types";
 import { createAgentPrompt, formatDataForPrompt } from "./prompts";
 
 const getAI = () => {
-  if (!import.meta.env.VITE_GEMINI_API_KEY) {
+  if (!process.env.API_KEY) {
     throw new Error("API Key not found");
   }
-  return new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Helper for delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const runGeminiAgent = async (
-  role: AgentRole,
-  marketData: Kline[],
+  role: AgentRole, 
+  marketData: Kline[], 
   language: Language,
   symbol: string,
   upstreamReports: Record<string, string> = {},
@@ -24,10 +24,10 @@ export const runGeminiAgent = async (
   userPosition?: UserPosition | null
 ): Promise<string> => {
   const ai = getAI();
-  const modelId = 'gemini-2.5-flash';
-
+  const modelId = 'gemini-2.5-flash'; 
+  
   const dataStr = formatDataForPrompt(marketData);
-
+  
   // Format upstream reports for managers
   let reportsStr = "";
   Object.entries(upstreamReports).forEach(([r, content]) => {
@@ -38,8 +38,9 @@ export const runGeminiAgent = async (
 
   let responseSchema: any = undefined;
   let responseMimeType: string | undefined = undefined;
+  let tools: any[] | undefined = undefined;
 
-  // CEO outputs JSON
+  // 1. Setup JSON Schema for CEO
   if (role === AgentRole.CEO) {
     responseMimeType = "application/json";
     responseSchema = {
@@ -56,6 +57,12 @@ export const runGeminiAgent = async (
     };
   }
 
+  // 2. Setup Google Search Tool for Macro Analyst
+  // Only Macro Analyst gets search to focus on news/sentiment
+  if (role === AgentRole.MACRO) {
+    tools = [{ googleSearch: {} }];
+  }
+
   // Retry logic with exponential backoff
   let lastError: any;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -66,16 +73,21 @@ export const runGeminiAgent = async (
         config: {
           responseMimeType,
           responseSchema,
-          temperature: temperature
+          temperature: temperature,
+          tools: tools // Inject tools if defined
         }
       });
 
       const text = response.text;
+      
+      // If Macro Analyst used search, we might want to append sources (Optional enhancement)
+      // For now, we just return the synthesized text which usually includes the findings.
+      
       return text || "No analysis generated.";
     } catch (error: any) {
       console.warn(`Agent ${role} failed attempt ${attempt + 1}/3:`, error);
       lastError = error;
-
+      
       // Don't retry on certain fatal errors if we could detect them, 
       // but 500/RPC errors are usually retriable.
       if (attempt < 2) {
