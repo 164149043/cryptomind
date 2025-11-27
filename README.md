@@ -41,7 +41,7 @@
 ### 2. 获取代码
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/164149043/cryptomind.git
 cd cryptomind-ai
 ```
 
